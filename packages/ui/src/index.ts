@@ -1,0 +1,1 @@
+export { Hello, type HelloProps } from './components/Hello';

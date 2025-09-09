@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-native",
+    "types": ["react", "react-native"],
+    "noEmit": true,
+    "moduleSuffixes": [".native", ".web", ""],
+    "esModuleInterop": true
+  },
+  "include": ["src/**/*"]
+}

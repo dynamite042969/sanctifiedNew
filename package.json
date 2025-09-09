@@ -1,0 +1,26 @@
+{
+  "name": "sanctified",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+     "dev:web": "pnpm --filter web dev",
+    "dev:android": "pnpm --filter mobile start",
+    "dev:ios": "pnpm --filter mobile start",
+    "build:web": "pnpm --filter web build",
+    "build:android": "cd apps/mobile/android && ./gradlew assembleRelease"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "workspaces": ["apps/*", "packages/*"],
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "pnpm": {
+    "overrides": {
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
+  }
+}
