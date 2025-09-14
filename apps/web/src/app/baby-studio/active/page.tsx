@@ -198,15 +198,8 @@ export default function ActiveCustomersPage() {
     const remaining = Math.max(0, total - newAdvance);
     const status: BookingRow['status'] = remaining <= 0 && total > 0 ? 'completed' : 'active';
 
-    // First, open WhatsApp chat immediately.
-    const msg = [
-      `Final receipt for ${current.name}`,
-      `Event: ${current.event_date || '-'}`,
-      `Total: ₹${total}`,
-      `Paid now: ₹${final}`,
-      `Remaining: ₹${remaining}`,
-    ].join('\n');
-    openWhatsAppChat(current.phone, msg);
+    // No longer opening WhatsApp with generic message here.
+    // The API will return the full WhatsApp URL with the PDF link.
 
     // Then, update database and try to send attachment in the background.
     const { error: dbError } = await supabase.from('bookings').update({
@@ -227,17 +220,20 @@ export default function ActiveCustomersPage() {
           body: JSON.stringify({
             bookingId: current.id,
             finalAmount: final,
+            bookingType: 'baby', // Added bookingType
           }),
         });
 
         const j = await resp.json().catch(() => ({}));
-        if (resp.ok && j.ok) {
-          setSnack({ open: true, msg: 'Final receipt sent on WhatsApp', type: 'success' });
+        if (resp.ok && j.ok && j.whatsappUrl) { // Changed condition
+          // Directly open WhatsApp with the URL from the API
+          window.open(j.whatsappUrl, '_blank', 'noopener,noreferrer'); // Use window.open directly
+          setSnack({ open: true, msg: 'Final receipt uploaded to Supabase Storage and link sent on WhatsApp', type: 'success' });
         } else {
-          setSnack({ open: true, msg: j.error || 'Could not send attachment.', type: 'error' });
+          setSnack({ open: true, msg: j.error || 'Could not upload PDF to Supabase Storage.', type: 'error' });
         }
       } catch (e: any) {
-        setSnack({ open: true, msg: 'Could not send attachment.', type: 'error' });
+        setSnack({ open: true, msg: 'Could not upload PDF to Supabase Storage.', type: 'error' }); // Changed error message
       }
     }
 

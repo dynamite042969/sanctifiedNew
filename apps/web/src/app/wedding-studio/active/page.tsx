@@ -23,6 +23,8 @@ import {
   InputLabel,
   Select,
   TablePagination,
+  Snackbar,
+  Alert,
 } from "@mui/material";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import dayjs, { Dayjs } from "dayjs";
@@ -73,6 +75,7 @@ export default function ActiveCustomersPage() {
   });
   const [page, setPage] = React.useState(0);
   const [rowsPerPage, setRowsPerPage] = React.useState(20);
+  const [snack, setSnack] = React.useState<{ open: boolean; msg: string; type: 'success' | 'error' }>({ open: false, msg: '', type: 'success' });
 
   const load = async () => {
     setLoading(true);
@@ -121,8 +124,10 @@ export default function ActiveCustomersPage() {
 
     if (error) {
       console.error("Error updating active customer:", error);
+      setSnack({ open: true, msg: error.message, type: 'error' });
     } else {
       console.log("Active customer updated successfully");
+      setSnack({ open: true, msg: 'Customer updated successfully', type: 'success' });
       handleCloseEditModal();
       load();
     }
@@ -133,8 +138,10 @@ export default function ActiveCustomersPage() {
     const { error } = await supabase.from("wedding_active").delete().eq("id", selectedCustomer.id);
     if (error) {
       console.error("Error deleting active customer:", error);
+      setSnack({ open: true, msg: error.message, type: 'error' });
     } else {
       console.log("Active customer deleted successfully");
+      setSnack({ open: true, msg: 'Customer deleted successfully', type: 'success' });
       load();
     }
     handleCloseActionsMenu();
@@ -157,7 +164,8 @@ export default function ActiveCustomersPage() {
   const handleSendFinalReceipt = async () => {
     if (!selectedCustomer || !finalPayment) return;
 
-    const { error } = await supabase
+    // Update database first
+    const { error: dbError } = await supabase
       .from("wedding_active")
       .update({
         status: "completed",
@@ -166,14 +174,37 @@ export default function ActiveCustomersPage() {
       })
       .eq("id", selectedCustomer.id);
 
-    if (error) {
-      console.error("Error updating status:", error);
+    if (dbError) {
+      setSnack({ open: true, msg: dbError.message, type: 'error' });
+      console.error("Error updating status:", dbError);
       return;
     }
 
-    const message = `Hello ${selectedCustomer.name}, thank you for your final payment of ₹${finalPayment}.`;
-    const whatsappUrl = `https://wa.me/${selectedCustomer.phone}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, "_blank");
+    // Now call the API to generate PDF and WhatsApp link
+    try {
+      const resp = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: selectedCustomer.id,
+          finalAmount: Number(finalPayment),
+          bookingType: 'wedding', // Added bookingType
+        }),
+      });
+
+      const j = await resp.json().catch(() => ({}));
+      if (resp.ok && j.ok && j.whatsappUrl) {
+        window.open(j.whatsappUrl, '_blank', 'noopener,noreferrer');
+        setSnack({ open: true, msg: 'Final receipt uploaded to Supabase Storage and link sent on WhatsApp', type: 'success' });
+      } else {
+        setSnack({ open: true, msg: j.error || 'Could not upload PDF to Supabase Storage.', type: 'error' });
+        console.error("Error from API:", j.error || 'Could not upload PDF to Supabase Storage.');
+      }
+    } catch (e: any) {
+      setSnack({ open: true, msg: 'Could not upload PDF to Supabase Storage.', type: 'error' });
+      console.error("API call error:", e);
+    }
+
     handleCloseFinalPaymentModal();
     load();
   };
@@ -482,6 +513,16 @@ export default function ActiveCustomersPage() {
           <MenuItem onClick={handleOpenFinalPaymentModal}>Send Final Receipt</MenuItem>
         </Menu>
       </Container>
+    <Snackbar
+        open={snack.open}
+        autoHideDuration={3000}
+        onClose={() => setSnack({ ...snack, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snack.type} variant="filled">
+          {snack.msg}
+        </Alert>
+      </Snackbar>
     </main>
   );
 }

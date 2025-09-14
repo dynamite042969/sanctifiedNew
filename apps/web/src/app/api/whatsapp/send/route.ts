@@ -1,6 +1,9 @@
+// src/app/api/whatsapp/send/route.ts
+export const runtime = 'nodejs';
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createReceiptPdfBuffer } from '../../receipts/pdf-lib'; // keep your helper here
+import { createReceiptPdfBuffer } from '../../receipts/pdf-lib';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,30 +13,48 @@ const supabase = createClient(
 
 export async function POST(req: Request) {
   try {
-    const { bookingId, finalAmount } = await req.json();
+    const { bookingId, finalAmount, bookingType } = (await req.json()) as {
+      bookingId: string; // Can be number (for wedding) or UUID (for baby)
+      finalAmount: number;
+      bookingType: 'wedding' | 'baby'; // New parameter
+    };
 
-    if (!process.env.WHATSAPP_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
-      return NextResponse.json(
-        { ok: false, error: 'WhatsApp API not configured (missing envs).' },
-        { status: 500 }
-      );
+    if (!process.env.SUPABASE_STORAGE_BUCKET_NAME) {
+      return NextResponse.json({ ok: false, error: 'Missing SUPABASE_STORAGE_BUCKET_NAME' }, { status: 500 });
     }
 
-    // Load booking details
-    const { data: booking, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('id', bookingId)
-      .single();
+    let booking: any;
+    let bookingErr: any;
 
-    if (error || !booking) {
+    if (bookingType === 'wedding') {
+      const { data, error } = await supabase
+        .from('wedding_active')
+        .select('*')
+        .eq('id', Number(bookingId)) // Cast to Number for bigint ID
+        .single();
+      booking = data;
+      bookingErr = error;
+    } else if (bookingType === 'baby') {
+      // Assuming 'bookings' table for baby studio uses UUIDs
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('id', bookingId) // bookingId is already string/UUID
+        .single();
+      booking = data;
+      bookingErr = error;
+    } else {
+      return NextResponse.json({ ok: false, error: 'Invalid bookingType' }, { status: 400 });
+    }
+
+    if (bookingErr || !booking) {
       return NextResponse.json(
-        { ok: false, error: error?.message || 'Booking not found' },
+        { ok: false, error: bookingErr?.message || 'Booking not found' },
         { status: 404 }
       );
     }
 
-    // Build PDF
+    // 2) Build PDF
     const pdfBuffer = await createReceiptPdfBuffer({
       id: booking.id,
       name: booking.name,
@@ -45,58 +66,44 @@ export async function POST(req: Request) {
       remainingAmount: Number(booking.remaining_amount ?? 0),
     });
 
-    // Upload media to WhatsApp
-    const form = new FormData();
-    form.set('messaging_product', 'whatsapp');
-    form.set('type', 'application/pdf');
-    form.set('file', new Blob([new Uint8Array(pdfBuffer)], { type: 'application/pdf' }), `receipt-${booking.id}.pdf`);
+    // 3) Upload to Supabase Storage
+    const fileName = `receipt-${booking.id}.pdf`;
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(process.env.SUPABASE_STORAGE_BUCKET_NAME)
+      .upload(fileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true, // Overwrite if file with same name exists
+      });
 
-    const mediaRes = await fetch(
-      `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/media`,
-      {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}` },
-        body: form,
-      }
-    );
-
-    const mediaJson: any = await mediaRes.json();
-    if (!mediaRes.ok) {
-      console.error('WA media upload error:', mediaJson);
-      return NextResponse.json({ ok: false, error: mediaJson.error?.message || 'Upload failed' }, { status: 500 });
+    if (uploadError) {
+      console.error('Supabase Storage upload error:', uploadError);
+      return NextResponse.json({ ok: false, error: uploadError.message || 'Supabase Storage upload failed.' }, { status: 500 });
     }
 
-    // Send document to the customer
-    const sendRes = await fetch(
-      `https://graph.facebook.com/v20.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_TOKEN}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: `+${(booking.phone as string).replace(/\D/g, '')}`, // e.g. +919755...
-          type: 'document',
-          document: {
-            id: mediaJson.id,
-            caption: `Final receipt for ${booking.name}`,
-            filename: `receipt-${booking.id}.pdf`,
-          },
-        }),
-      }
-    );
+    // 4) Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from(process.env.SUPABASE_STORAGE_BUCKET_NAME)
+      .getPublicUrl(fileName);
 
-    const sendJson: any = await sendRes.json();
-    if (!sendRes.ok) {
-      console.error('WA send error:', sendJson);
-      return NextResponse.json({ ok: false, error: sendJson.error?.message || 'Send failed' }, { status: 500 });
+    if (!publicUrlData || !publicUrlData.publicUrl) {
+      return NextResponse.json({ ok: false, error: 'Failed to get public URL for Supabase Storage file.' }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true });
+    const supabaseStorageLink = publicUrlData.publicUrl;
+    console.log('Supabase Storage Link:', supabaseStorageLink);
+
+    // 5) Construct WhatsApp message and URL
+    const whatsappMessage = `Hello ${booking.name},
+
+Here is your receipt: ${supabaseStorageLink}
+
+Thank you!`;
+    const encodedMessage = encodeURIComponent(whatsappMessage);
+    const whatsappUrl = `https://wa.me/${booking.phone}?text=${encodedMessage}`;
+
+    return NextResponse.json({ ok: true, whatsappUrl });
   } catch (e: any) {
-    console.error('WA route error:', e);
-    return NextResponse.json({ ok: false, error: e.message || 'Unknown error' }, { status: 500 });
+    console.error('API route error:', e);
+    return NextResponse.json({ ok: false, error: e?.message || 'Unknown error' }, { status: 500 });
   }
 }
