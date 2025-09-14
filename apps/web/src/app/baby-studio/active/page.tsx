@@ -198,7 +198,17 @@ export default function ActiveCustomersPage() {
     const remaining = Math.max(0, total - newAdvance);
     const status: BookingRow['status'] = remaining <= 0 && total > 0 ? 'completed' : 'active';
 
-    // Always update the database first
+    // First, open WhatsApp chat immediately.
+    const msg = [
+      `Final receipt for ${current.name}`,
+      `Event: ${current.event_date || '-'}`,
+      `Total: ₹${total}`,
+      `Paid now: ₹${final}`,
+      `Remaining: ₹${remaining}`,
+    ].join('\n');
+    openWhatsAppChat(current.phone, msg);
+
+    // Then, update database and try to send attachment in the background.
     const { error: dbError } = await supabase.from('bookings').update({
       advance_paid: newAdvance,
       remaining_amount: remaining,
@@ -207,58 +217,28 @@ export default function ActiveCustomersPage() {
 
     if (dbError) {
       setSnack({ open: true, msg: dbError.message, type: 'error' });
-      setFinalOpen(false);
-      setCurrent(null);
-      load();
-      return;
-    }
-
-    let apiSuccess = false;
-    let errorMessage = 'Sent as WhatsApp text (attachment unavailable)';
-
-    try {
-      // Ask API to generate PDF & send via WhatsApp Business
-      const resp = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId: current.id,
-          finalAmount: final,
-        }),
-      });
-
-      const j = await resp.json().catch(() => ({}));
-      if (resp.ok && j.ok) {
-        apiSuccess = true;
-      } else {
-        errorMessage = j.error || errorMessage;
-      }
-    } catch (e: any) {
-      errorMessage = e.message || 'Failed to send; opened WhatsApp chat instead';
-    }
-
-    if (apiSuccess) {
-      // success: also open chat for visual confirmation
-      const note = [
-        `Hi ${current.name},
-`,
-        `Your final receipt has been sent as an attachment.
-`,
-        `Total: ₹${total}, Paid now: ₹${final}, Remaining: ₹${remaining}`,
-      ].join(' ');
-      openWhatsAppChat(current.phone, note);
-      setSnack({ open: true, msg: 'Final receipt sent on WhatsApp', type: 'success' });
+      // still close dialog and reload
     } else {
-      // fallback: open WhatsApp Web chat with a text message
-      const msg = [
-        `Final receipt for ${current.name}`,
-        `Event: ${current.event_date || '-'}`,
-        `Total: ₹${total}`,
-        `Paid now: ₹${final}`,
-        `Remaining: ₹${remaining}`,
-      ].join('\n');
-      openWhatsAppChat(current.phone, msg);
-      setSnack({ open: true, msg: errorMessage, type: 'error' });
+      // DB update was fine. Now try the API.
+      try {
+        const resp = await fetch('/api/whatsapp/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookingId: current.id,
+            finalAmount: final,
+          }),
+        });
+
+        const j = await resp.json().catch(() => ({}));
+        if (resp.ok && j.ok) {
+          setSnack({ open: true, msg: 'Final receipt sent on WhatsApp', type: 'success' });
+        } else {
+          setSnack({ open: true, msg: j.error || 'Could not send attachment.', type: 'error' });
+        }
+      } catch (e: any) {
+        setSnack({ open: true, msg: 'Could not send attachment.', type: 'error' });
+      }
     }
 
     setFinalOpen(false);
