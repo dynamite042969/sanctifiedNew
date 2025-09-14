@@ -323,6 +323,7 @@ We’ll get back to you shortly.`;
                   value={eventDate}
                   onChange={setEventDate}
                   minDate={dayjs().startOf('day')}
+                  format="DD-MM-YYYY" // Added format prop
                   slotProps={{ textField: { fullWidth: true, required: true } }}
                 />
               </Grid>
