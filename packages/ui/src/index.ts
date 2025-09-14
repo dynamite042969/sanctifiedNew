@@ -1,1 +1,1 @@
-export { Hello, type HelloProps } from './components/Hello';
+export { Hello, type HelloProps } from './components/Hello.web';
