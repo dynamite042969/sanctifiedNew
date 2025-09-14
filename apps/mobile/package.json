@@ -1,0 +1,57 @@
+{
+  "name": "mobile",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "android": "node node_modules/@react-native-community/cli/build/index.js run-android",
+    "ios": "react-native run-ios",
+    "lint": "eslint .",
+    "start": "node node_modules/@react-native-community/cli/build/index.js start",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "^8.4.4",
+    "@react-navigation/native": "^7.1.17",
+    "@react-navigation/native-stack": "^7.3.26",
+    "@sanctified/ui": "workspace:*",
+    "@supabase/supabase-js": "^2.57.2",
+    "base-64": "^1.0.0",
+    "buffer": "^6.0.3",
+    "dayjs": "^1.11.18",
+    "react": "18.2.0",
+    "react-native": "0.74.7",
+    "react-native-get-random-values": "^1.11.0",
+    "react-native-safe-area-context": "^5.6.1",
+    "react-native-screens": "^4.16.0",
+    "react-native-url-polyfill": "^2.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@babel/plugin-transform-private-methods": "^7.27.1",
+    "@babel/preset-env": "^7.20.0",
+    "@babel/runtime": "^7.20.0",
+    "@react-native-community/cli": "13.6.9",
+    "@react-native-community/cli-platform-android": "13.6.9",
+    "@react-native-community/cli-platform-ios": "13.6.9",
+    "@react-native/babel-preset": "0.74.89",
+    "@react-native/eslint-config": "0.74.89",
+    "@react-native/metro-config": "0.74.89",
+    "@react-native/typescript-config": "0.74.89",
+    "@types/base-64": "^1.0.2",
+    "@types/react": "^18.2.6",
+    "@types/react-test-renderer": "^18.0.0",
+    "babel-jest": "^29.6.3",
+    "eslint": "^8.19.0",
+    "jest": "^29.6.3",
+    "metro-react-native-babel-preset": "^0.77.0",
+    "metro-runtime": "0.80.12",
+    "prettier": "2.8.8",
+    "react-test-renderer": "18.2.0",
+    "typescript": "5.0.4"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

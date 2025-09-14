@@ -1,0 +1,25 @@
+pluginManagement {
+  repositories {
+    gradlePluginPortal()
+    google()
+    mavenCentral()
+  }
+  // Load RN Gradle plugin from node_modules in the monorepo root
+  includeBuild("$rootDir/../../../node_modules/@react-native/gradle-plugin")
+}
+
+dependencyResolutionManagement {
+  repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+  repositories {
+    mavenCentral()
+    google()
+  }
+}
+
+rootProject.name = "mobile"
+
+// Autolinking script from monorepo root node_modules
+apply from: file("$rootDir/../../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle")
+applyNativeModulesSettingsGradle(settings)
+
+include(":app")

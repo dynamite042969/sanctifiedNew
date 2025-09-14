@@ -1,0 +1,23 @@
+// apps/mobile/android/build.gradle  (ROOT)
+
+buildscript {
+  // Keep your shared version props here so app/build.gradle can read rootProject.ext.*
+  ext {
+    buildToolsVersion = "34.0.0"
+    minSdkVersion = 23
+    compileSdkVersion = 34
+    targetSdkVersion = 34
+    ndkVersion = "26.1.10909125"
+    kotlinVersion = "1.9.22"
+  }
+}
+
+// Use the plugins DSL so Gradle can find the RN plugin supplied by settings.gradle includeBuild(...)
+plugins {
+  id("com.android.application") version "8.2.2" apply false
+  id("org.jetbrains.kotlin.android") version "1.9.22" apply false
+
+  // Provided by includeBuild("$rootDir/../../../node_modules/@react-native/gradle-plugin")
+  id("com.facebook.react") apply false
+  id("com.facebook.react.rootproject")
+}
