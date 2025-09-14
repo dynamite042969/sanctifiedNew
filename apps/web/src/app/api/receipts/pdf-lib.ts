@@ -22,7 +22,7 @@ export async function createReceiptPdfBuffer(args: ReceiptArgs): Promise<Buffer>
   const doc = new PDFDocument({ size: 'A4', margin: 48 });
 
   // Register a custom font
-  const fontPath = path.resolve(process.cwd(), 'apps/web/src/app/api/receipts/fonts/Roboto-Regular.ttf');
+  const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
   doc.registerFont('Roboto', fontPath);
   doc.font('Roboto'); // Set the font for the document
 
