@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+import * as fs from 'fs';
+import * as path from 'path';
 
 type ReceiptArgs = {
   id: string;
@@ -18,6 +20,11 @@ export async function createReceiptPdfBuffer(args: ReceiptArgs): Promise<Buffer>
   } = args;
 
   const doc = new PDFDocument({ size: 'A4', margin: 48 });
+
+  // Register a custom font
+  const fontPath = path.resolve(process.cwd(), 'apps/web/src/app/api/receipts/fonts/Roboto-Regular.ttf');
+  doc.registerFont('Roboto', fontPath);
+  doc.font('Roboto'); // Set the font for the document
 
   // Border
   doc.rect(24, 24, doc.page.width - 48, doc.page.height - 48).strokeColor('#999').lineWidth(1).stroke();
