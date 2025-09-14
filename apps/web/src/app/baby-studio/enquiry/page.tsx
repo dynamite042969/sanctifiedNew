@@ -19,6 +19,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  InputLabel,
+  FormControl,
+  Select,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import SendIcon from '@mui/icons-material/Send';
@@ -82,6 +85,11 @@ export default function CustomerEnquiryPage() {
   const [rows, setRows] = React.useState<Enquiry[]>([]);
   const [loading, setLoading] = React.useState(true);
 
+  // Filters
+  const [searchText, setSearchText] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('');
+  const [dateFilter, setDateFilter] = React.useState<Dayjs | null>(null);
+
   // Actions menu
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
   const [activeRow, setActiveRow] = React.useState<Enquiry | null>(null);
@@ -98,18 +106,37 @@ export default function CustomerEnquiryPage() {
 
   const fetchRows = React.useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('customer_enquiries')
-      .select('*')
-      .order('created_at', { ascending: false });
+      .select('*');
+
+    if (searchText) {
+      query = query.or(`name.ilike.%${searchText}%,phone.ilike.%${searchText}%`);
+    }
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    }
+
+    if (dateFilter) {
+      query = query.eq('event_date', dateFilter.format('YYYY-MM-DD'));
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (!error && data) setRows(data as Enquiry[]);
     setLoading(false);
-  }, []);
+  }, [searchText, statusFilter, dateFilter]);
 
   React.useEffect(() => {
     fetchRows();
   }, [fetchRows]);
+
+  const handleClearFilters = () => {
+    setSearchText('');
+    setStatusFilter('');
+    setDateFilter(null);
+  };
 
   // ---- Create enquiry (no WhatsApp here anymore) ----
   const onSubmit = async (e: React.FormEvent) => {
@@ -317,6 +344,36 @@ We’ll get back to you shortly.`;
             All Enquiries
           </Typography>
 
+          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+            <TextField
+              label="Search by Name or Phone"
+              variant="outlined"
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              sx={{ flex: 1 }}
+            />
+            <FormControl sx={{ minWidth: 120 }}>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusFilter}
+                label="Status"
+                onChange={(e) => setStatusFilter(e.target.value as string)}
+              >
+                <MenuItem value="">
+                  <em>All</em>
+                </MenuItem>
+                <MenuItem value="enquiry">Enquiry</MenuItem>
+                <MenuItem value="active">Active</MenuItem>
+              </Select>
+            </FormControl>
+            <DatePicker
+              label="Event Date"
+              value={dateFilter}
+              onChange={(newValue) => setDateFilter(newValue)}
+            />
+            <Button variant="outlined" onClick={handleClearFilters}>Clear</Button>
+          </Box>
+
           <Box sx={{ width: '100%', overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
@@ -393,7 +450,7 @@ We’ll get back to you shortly.`;
         </CardContent>
       </Card>
 
-      {/* Actions Menu */}
+      {/* Actions Menu */} 
       <Menu
         anchorEl={menuAnchor}
         open={openMenu}
@@ -411,7 +468,7 @@ We’ll get back to you shortly.`;
         </MenuItem>
       </Menu>
 
-      {/* Edit Dialog */}
+      {/* Edit Dialog */} 
       <Dialog open={editOpen} onClose={() => setEditOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Enquiry</DialogTitle>
         <DialogContent dividers>
@@ -459,7 +516,7 @@ We’ll get back to you shortly.`;
         </DialogActions>
       </Dialog>
 
-      {/* Convert to Booking Dialog */}
+      {/* Convert to Booking Dialog */} 
       <Dialog open={bookOpen} onClose={() => setBookOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Convert to Booking</DialogTitle>
         <DialogContent dividers>

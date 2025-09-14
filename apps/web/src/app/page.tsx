@@ -2,12 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Container, Card, CardActionArea, CardContent, Typography } from "@mui/material";
 import Grid from "@mui/material/Unstable_Grid2";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import EventIcon from "@mui/icons-material/Event";
 import GroupIcon from "@mui/icons-material/Group";
+import logo from "../assets/logo.png";
 
 type Tile = {
   title: string;
@@ -26,6 +28,7 @@ const tiles: Tile[] = [
 export default function HomePage() {
   return (
     <Container maxWidth="lg">
+      <Image src={logo} alt="Sanctified Studios Logo" width={100} height={100} style={{ margin: "auto" }} />
       <Typography variant="h3" fontWeight={800} textAlign="center" mb={2}>
         Welcome to Sanctified Studios
       </Typography>

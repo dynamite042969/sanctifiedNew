@@ -14,16 +14,19 @@ import {
   DialogActions,
   Button,
   TextField,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  SelectChangeEvent,
 } from '@mui/material';
 import {
   DataGrid,
   GridColDef,
   GridActionsCellItem,
 } from '@mui/x-data-grid';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import AddCardIcon from '@mui/icons-material/AddCard';
+import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import { Edit as EditIcon, Delete as DeleteIcon, ReceiptLong as ReceiptLongIcon, AddCard as AddCardIcon } from '@mui/icons-material';
 import { createClient } from '@supabase/supabase-js';
 
 type BookingRow = {
@@ -49,6 +52,17 @@ export default function ActiveCustomersPage() {
   const [loading, setLoading] = React.useState(false);
   const [snack, setSnack] = React.useState<{ open: boolean; msg: string; type: 'success' | 'error' }>({ open: false, msg: '', type: 'success' });
 
+  // filters
+  const [searchText, setSearchText] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('');
+  const [dateFilter, setDateFilter] = React.useState<dayjs.Dayjs | null>(null);
+
+  const handleClearFilters = () => {
+    setSearchText('');
+    setStatusFilter('');
+    setDateFilter(null);
+  };
+
   // dialogs
   const [editOpen, setEditOpen] = React.useState(false);
   const [advanceOpen, setAdvanceOpen] = React.useState(false);
@@ -60,10 +74,21 @@ export default function ActiveCustomersPage() {
 
   const load = React.useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*')
-      .order('event_date', { ascending: true });
+    let query = supabase.from('bookings').select('*');
+
+    if (searchText) {
+      query = query.or(`name.ilike.%${searchText}%,phone.ilike.%${searchText}%`);
+    }
+
+    if (statusFilter) {
+      query = query.eq('status', statusFilter);
+    }
+
+    if (dateFilter) {
+      query = query.eq('event_date', dateFilter.format('YYYY-MM-DD'));
+    }
+
+    const { data, error } = await query.order('event_date', { ascending: true });
 
     if (error) {
       setSnack({ open: true, msg: error.message, type: 'error' });
@@ -71,7 +96,7 @@ export default function ActiveCustomersPage() {
       setRows((data ?? []) as BookingRow[]);
     }
     setLoading(false);
-  }, []);
+  }, [searchText, statusFilter, dateFilter]);
 
   React.useEffect(() => {
     load();
@@ -167,21 +192,31 @@ export default function ActiveCustomersPage() {
   const sendFinal = async () => {
     if (!current) return;
 
+    const final = Number(finalAmount);
+    const total = Number(current.amount_total || current.initial_amount_total);
+    const newAdvance = Number(current.advance_paid) + final;
+    const remaining = Math.max(0, total - newAdvance);
+    const status: BookingRow['status'] = remaining <= 0 && total > 0 ? 'completed' : 'active';
+
+    // Always update the database first
+    const { error: dbError } = await supabase.from('bookings').update({
+      advance_paid: newAdvance,
+      remaining_amount: remaining,
+      status,
+    }).eq('id', current.id);
+
+    if (dbError) {
+      setSnack({ open: true, msg: dbError.message, type: 'error' });
+      setFinalOpen(false);
+      setCurrent(null);
+      load();
+      return;
+    }
+
+    let apiSuccess = false;
+    let errorMessage = 'Sent as WhatsApp text (attachment unavailable)';
+
     try {
-      const final = Number(finalAmount);
-      const total = Number(current.amount_total || current.initial_amount_total);
-      const newAdvance = Number(current.advance_paid) + final;
-      const remaining = Math.max(0, total - newAdvance);
-      const status: BookingRow['status'] = remaining <= 0 && total > 0 ? 'completed' : 'active';
-
-      // Update DB first so numbers are correct on the PDF
-      const { error } = await supabase.from('bookings').update({
-        advance_paid: newAdvance,
-        remaining_amount: remaining,
-        status,
-      }).eq('id', current.id);
-      if (error) throw new Error(error.message);
-
       // Ask API to generate PDF & send via WhatsApp Business
       const resp = await fetch('/api/whatsapp/send', {
         method: 'POST',
@@ -193,47 +228,42 @@ export default function ActiveCustomersPage() {
       });
 
       const j = await resp.json().catch(() => ({}));
-      if (!resp.ok || !j.ok) {
-        // fallback: open WhatsApp Web chat with a text message
-        const msg = [
-          `Final receipt for ${current.name}`,
-          `Event: ${current.event_date || '-'}`,
-          `Total: ₹${total}`,
-          `Paid now: ₹${final}`,
-          `Remaining: ₹${remaining}`,
-        ].join('\n');
-        openWhatsAppChat(current.phone, msg);
-        setSnack({ open: true, msg: j.error || 'Sent as WhatsApp text (attachment unavailable)', type: 'error' });
+      if (resp.ok && j.ok) {
+        apiSuccess = true;
       } else {
-        // success: also open chat for visual confirmation
-        const note = [
-          `Hi ${current.name},`,
-          `Your final receipt has been sent as an attachment.`,
-          `Total: ₹${total}, Paid now: ₹${final}, Remaining: ₹${remaining}`,
-        ].join(' ');
-        openWhatsAppChat(current.phone, note);
-        setSnack({ open: true, msg: 'Final receipt sent on WhatsApp', type: 'success' });
+        errorMessage = j.error || errorMessage;
       }
     } catch (e: any) {
-      // last-resort fallback to chat
-      const final = Number(finalAmount);
-      const total = Number(current.amount_total || current.initial_amount_total);
-      const newAdvance = Number(current.advance_paid) + final;
-      const remaining = Math.max(0, total - newAdvance);
+      errorMessage = e.message || 'Failed to send; opened WhatsApp chat instead';
+    }
+
+    if (apiSuccess) {
+      // success: also open chat for visual confirmation
+      const note = [
+        `Hi ${current.name},
+`,
+        `Your final receipt has been sent as an attachment.
+`,
+        `Total: ₹${total}, Paid now: ₹${final}, Remaining: ₹${remaining}`,
+      ].join(' ');
+      openWhatsAppChat(current.phone, note);
+      setSnack({ open: true, msg: 'Final receipt sent on WhatsApp', type: 'success' });
+    } else {
+      // fallback: open WhatsApp Web chat with a text message
       const msg = [
-        `Final receipt for ${current?.name ?? ''}`,
-        `Event: ${current?.event_date ?? '-'}`,
+        `Final receipt for ${current.name}`,
+        `Event: ${current.event_date || '-'}`,
         `Total: ₹${total}`,
         `Paid now: ₹${final}`,
         `Remaining: ₹${remaining}`,
       ].join('\n');
-      if (current) openWhatsAppChat(current.phone, msg);
-      setSnack({ open: true, msg: e.message || 'Failed to send; opened WhatsApp chat instead', type: 'error' });
-    } finally {
-      setFinalOpen(false);
-      setCurrent(null);
-      load();
+      openWhatsAppChat(current.phone, msg);
+      setSnack({ open: true, msg: errorMessage, type: 'error' });
     }
+
+    setFinalOpen(false);
+    setCurrent(null);
+    load();
   };
 
   const cols: GridColDef<BookingRow>[] = [
@@ -293,6 +323,38 @@ export default function ActiveCustomersPage() {
       <Typography variant="h4" fontWeight={700} gutterBottom>
         Active Customers
       </Typography>
+
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+        <TextField
+          label="Search by Name or Phone"
+          variant="outlined"
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          sx={{ flex: 1 }}
+        />
+        <FormControl sx={{ minWidth: 120 }}>
+          <InputLabel>Status</InputLabel>
+          <Select
+            value={statusFilter}
+            label="Status"
+            onChange={(e) => setStatusFilter(e.target.value as string)}
+          >
+            <MenuItem value="">
+              <em>All</em>
+            </MenuItem>
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="completed">Completed</MenuItem>
+            <MenuItem value="cancelled">Cancelled</MenuItem>
+          </Select>
+        </FormControl>
+        <DatePicker
+          label="Event Date"
+          value={dateFilter}
+          onChange={(newValue) => setDateFilter(newValue)}
+        />
+        <Button variant="outlined" onClick={handleClearFilters}>Clear</Button>
+      </Box>
+
       <Box sx={{ height: 560, width: '100%' }}>
         <DataGrid
           rows={rows}
