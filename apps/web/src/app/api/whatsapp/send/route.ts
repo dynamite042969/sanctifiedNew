@@ -95,9 +95,13 @@ export async function POST(req: Request) {
     // 5) Construct WhatsApp message and URL
     const whatsappMessage = `Hello ${booking.name},
 
-Here is your receipt: ${supabaseStorageLink}
-
-Thank you!`;
+Thank You for trusting Sanctified Studios 
+Details - 
+* Event Date - ${booking.event_date}
+* Final Amount - ${booking.amount_total}
+Here is your receipt - ${supabaseStorageLink}
+Thank you for choosing us !! 
+Hope to see you again. `;
     const encodedMessage = encodeURIComponent(whatsappMessage);
     const whatsappUrl = `https://wa.me/${booking.phone}?text=${encodedMessage}`;
 
