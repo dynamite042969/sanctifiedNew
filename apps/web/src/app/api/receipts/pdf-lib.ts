@@ -29,8 +29,14 @@ export async function createReceiptPdfBuffer(args: ReceiptArgs): Promise<Buffer>
   const doc = new PDFDocument({ size: 'A4', margin: 48 });
 
   // Load font bytes only once
-  if (!ROBOTO_REG_BYTES) ROBOTO_REG_BYTES = await loadFontBytes('Roboto-Regular.ttf');
-  if (!ROBOTO_BOLD_BYTES) ROBOTO_BOLD_BYTES = await loadFontBytes('Roboto-Bold.ttf');
+  if (!ROBOTO_REG_BYTES) {
+    ROBOTO_REG_BYTES = await loadFontBytes('Roboto-Regular.ttf');
+    console.log(`ROBOTO_REG_BYTES populated: ${!!ROBOTO_REG_BYTES}`);
+  }
+  if (!ROBOTO_BOLD_BYTES) {
+    ROBOTO_BOLD_BYTES = await loadFontBytes('Roboto-Bold.ttf');
+    console.log(`ROBOTO_BOLD_BYTES populated: ${!!ROBOTO_BOLD_BYTES}`);
+  }
 
   // Register and use custom fonts with Identity-H encoding for Unicode support
   doc.registerFont('Roboto-Regular', ROBOTO_REG_BYTES);
