@@ -1,0 +1,7 @@
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  included_files = [
+    "apps/web/src/public/fonts/**"
+  ]
