@@ -103,7 +103,7 @@ ${EMOJI_CALENDAR} Date :- ${event.date}`)
             .join('\n\n');
 
         whatsappMessage = `
-${EMOJI_CAMERA} Hi, ${enquiry.name} you are successfully enquired ORDER with Sanctified Studios for following event's
+${EMOJI_CAMERA} Hi, ${enquiry.name} you have successfully enquired ORDER with Sanctified Studios for following event's
 
 -----------------------------------------------
 ${eventsText}
@@ -132,7 +132,7 @@ ${EMOJI_CLOCK} Time :- ${timeStr}
             .join('\n');
 
         whatsappMessage = `
-${EMOJI_CAMERA} Hi, ${enquiry.name} you are successfully enquired ORDER with us for following event's
+${EMOJI_CAMERA} Hi, ${enquiry.name} you have successfully enquired ORDER with us for following event's
 package type - ${enquiry.package}
 
 ${eventsText}
@@ -153,7 +153,7 @@ Regards, Sanctified Studios Gorakhpur 9827411116
             .join('\n');
 
         whatsappMessage = `
-${EMOJI_CAMERA} Hi, you are successfully enquired with Sanctified Studios for following event's
+${EMOJI_CAMERA} Hi, you have successfully enquired with Sanctified Studios for following event's
 
 ${eventsText}
 
