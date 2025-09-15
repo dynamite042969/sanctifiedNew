@@ -53,9 +53,8 @@ export async function POST(req: Request) {
     // 1) Build PDF
     const pdfBuffer = await createEnquiryPdfBuffer({
       customerName: enquiry.name,
+      packageType: enquiry.package,
       events: eventsForPdf,
-      advancePayment: advancePayment,
-      remainingPayment: remainingPayment,
       totalAmount: totalAmount,
     });
 
