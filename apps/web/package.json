@@ -24,13 +24,13 @@
     "get-stream": "^9.0.1",
     "googleapis": "^159.0.0",
     "next": "15.5.3",
-    "pdfkit": "^0.17.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-native-web": "^0.21.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/fontkit": "^2.0.8",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.3",
     "@types/react": "^18",
@@ -38,6 +38,8 @@
     "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9",
     "eslint-config-next": "14.2.3",
+    "fontkit": "^2.0.4",
+    "pdf-lib": "^1.17.1",
     "typescript": "^5"
   }
 }
