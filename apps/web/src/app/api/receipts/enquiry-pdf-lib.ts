@@ -111,7 +111,7 @@ export async function createEnquiryPdfBuffer(args: EnquiryPdfArgs): Promise<Buff
 
         /* Meta bar */
         .meta {
-          display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin: 18px 0 8px;
+          display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; margin: 18px 0 8px;
         }
         .meta .box {
           border:1px solid #eee; border-radius:10px; padding:12px 14px; background:#fafafa;

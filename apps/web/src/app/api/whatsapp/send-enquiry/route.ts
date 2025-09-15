@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createEnquiryPdfBuffer } from '../../receipts/enquiry-pdf-lib';
 import dayjs from 'dayjs';
+import path from 'path';
+import fs from 'fs/promises';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -50,12 +52,23 @@ export async function POST(req: Request) {
         }));
     }
 
+    let logoDataUrl: string | undefined;
+    try {
+      const logoPath = path.join(process.cwd(), 'src', 'assets', 'logo.png');
+      const logoBuffer = await fs.readFile(logoPath);
+      logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+    } catch (error) {
+      console.error('Failed to read logo file:', error);
+      // Continue without logo if it fails
+    }
+
     // 1) Build PDF
     const pdfBuffer = await createEnquiryPdfBuffer({
       customerName: enquiry.name,
       packageType: enquiry.package,
       events: eventsForPdf,
       totalAmount: totalAmount,
+      logoDataUrl: logoDataUrl,
     });
 
     // 2) Upload to Supabase Storage
