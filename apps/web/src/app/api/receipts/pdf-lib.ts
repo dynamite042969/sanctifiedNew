@@ -1,13 +1,15 @@
 // apps/web/src/app/api/receipts/pdf-lib.ts
-import * as PDFLib from 'pdf-lib';
-const { PDFDocument, rgb } = PDFLib;
 import fs from 'fs/promises';
 import path from 'path';
 import * as fontkit from 'fontkit'; // Import fontkit
 
 // Register fontkit with PDFDocument (do this once)
+// This must be done *before* importing PDFDocument
 // @ts-ignore
-PDFDocument.registerFontkit(fontkit);
+PDFLib.PDFDocument.registerFontkit(fontkit); // Use PDFLib.PDFDocument
+
+import * as PDFLib from 'pdf-lib';
+const { PDFDocument, rgb } = PDFLib;
 
 type ReceiptArgs = {
   id: string;
