@@ -251,6 +251,35 @@ export default function EnquiryPage() {
     if (enquiryError) {
       console.error("Error updating enquiry status:", enquiryError);
     } else {
+      // If the package is 'regular', trigger the new WhatsApp receipt flow
+      if (selectedEnquiry.package === "regular") {
+        try {
+          const response = await fetch("/api/whatsapp/send-enquiry", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              enquiry: selectedEnquiry,
+              advancePayment: Number(advancePayment),
+              remainingPayment: remainingAmount,
+              totalAmount: selectedEnquiry.amount,
+            }),
+          });
+
+          const result = await response.json();
+          if (result.ok && result.whatsappUrl) {
+            window.open(result.whatsappUrl, "_blank");
+          } else {
+            console.error("Failed to get WhatsApp URL:", result.error);
+            alert(`Failed to send WhatsApp receipt: ${result.error}`);
+          }
+        } catch (error) {
+          console.error("Error calling send-enquiry API:", error);
+          alert("An error occurred while sending the WhatsApp receipt.");
+        }
+      }
+
       handleCloseConvertModal();
       loadEnquiries();
     }
@@ -310,95 +339,41 @@ export default function EnquiryPage() {
     handleCloseActionsMenu();
   };
 
-  // 🔤 Use literal emoji to avoid encoding issues.
-  const EMOJI_CAMERA = "📷";
-  const EMOJI_POINTER = "👉";
-  const EMOJI_CALENDAR = "📅";
-  const EMOJI_CLOCK = "🕰️"; // includes VS16 to force emoji presentation
-  const EMOJI_LOCATION = "📍";
-  const EMOJI_RUPEE = "₹";
+  const handleSendWhatsApp = async () => {
+    if (!selectedEnquiry) return;
 
-  const generateWhatsAppMessage = (enquiry: Enquiry) => {
-    let eventsText = "";
+    // Always use the new flow for all packages
+    try {
+      const totalAmount = selectedEnquiry.amount;
+      // For this manual send, we don't know the advance payment, so use 0.
+      const advancePayment = 0;
+      const remainingPayment = totalAmount;
 
-    switch (enquiry.package) {
-      case "custom":
-        if (enquiry.custom_events) {
-          eventsText = enquiry.custom_events
-            .map((event) => {
-              const dateStr = event.date ? dayjs(event.date).format("DD-MMM-YYYY") : "--";
-              const timeStr = event.time ? dayjs(event.time).format("hh:mm A") : "--";
-              const func = event.function || "--";
-              const srv = event.service ? `(${event.service})` : "";
-              const addr = event.address || "--";
-              return `-----------------------------------------------
-${EMOJI_POINTER} Event :- ${func} ${srv}
-${EMOJI_CALENDAR} Date :- ${dateStr}
-${EMOJI_CLOCK} Time :- ${timeStr}
-${EMOJI_LOCATION} Address :- ${addr}
------------------------------------------------`;
-            })
-            .join("\n");
-        }
-        break;
+      const response = await fetch("/api/whatsapp/send-enquiry", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          enquiry: selectedEnquiry,
+          advancePayment: advancePayment,
+          remainingPayment: remainingPayment,
+          totalAmount: totalAmount,
+        }),
+      });
 
-      case "premium":
-      case "regular":
-        const functions = [
-          {
-            name: "MEHENDI AT BRIDES HOME",
-            date: "27-Oct-2024",
-            time: "--",
-            address: "TILHERI",
-          },
-          {
-            name: "HALDI CEREMONY COMMON FOR BOTH SIDE",
-            date: "28-Oct-2024",
-            time: "--",
-            address: "JABALPUR",
-          },
-          {
-            name: "SANGEET CEREMONY SEPERATE TEAM FOR BOTH SIDE",
-            date: "28-Oct-2024",
-            time: "--",
-            address: "JABALPUR",
-          },
-          { name: "WEDDING DAY", date: "29-Oct-2024", time: "--", address: "JABALPUR" },
-        ];
-        eventsText = functions
-          .map(
-            (func) => `-----------------------------------------------
-${EMOJI_POINTER} Event :- ${func.name} 
-${EMOJI_CALENDAR} Date :- ${func.date}
-${EMOJI_CLOCK} Time :- ${func.time}
-${EMOJI_LOCATION} Address :- ${func.address}
------------------------------------------------`
-          )
-          .join("\n");
-        break;
-
-      default:
-        break;
+      const result = await response.json();
+      if (result.ok && result.whatsappUrl) {
+        window.open(result.whatsappUrl, "_blank");
+      } else {
+        console.error("Failed to get WhatsApp URL:", result.error);
+        alert(`Failed to send WhatsApp receipt: ${result.error}`);
+      }
+    } catch (error) {
+      console.error("Error calling send-enquiry API:", error);
+      alert("An error occurred while sending the WhatsApp receipt.");
     }
 
-    return `${EMOJI_CAMERA} Hi, you are successfully booked ORDER with us for following event's
-
-${eventsText}
-Advance payment received ${EMOJI_RUPEE} 1000.00
-Pending Payment ${EMOJI_RUPEE} 74,000.00
-Thanks for trusting our studio to be a part of your celebration. Regards,
-Holy Ceremony Weddings
-Gorakhpur
-9827411116`;
-  };
-
-  const handleSendWhatsApp = () => {
-    if (!selectedEnquiry) return;
-    const message = generateWhatsAppMessage(selectedEnquiry);
-    const whatsappUrl = `https://wa.me/${selectedEnquiry.phone}?text=${encodeURIComponent(
-      message
-    )}`;
-    window.open(whatsappUrl, "_blank");
     handleCloseActionsMenu();
   };
 
