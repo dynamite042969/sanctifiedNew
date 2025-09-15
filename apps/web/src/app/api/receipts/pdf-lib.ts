@@ -1,6 +1,4 @@
-import PDFDocument from 'pdfkit';
-import * as fs from 'fs';
-import * as path from 'path';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 type ReceiptArgs = {
   id: string;
@@ -14,44 +12,47 @@ type ReceiptArgs = {
 };
 
 export async function createReceiptPdfBuffer(args: ReceiptArgs): Promise<Buffer> {
-  const {
-    id, name, phone, eventDate,
-    amountTotal, advancePaid, finalPaidNow, remainingAmount
-  } = args;
+  const { id, name, phone, eventDate, amountTotal, advancePaid, finalPaidNow, remainingAmount } = args;
 
-  const doc = new PDFDocument({ size: 'A4', margin: 48 });
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]); // A4
+  const { width, height } = page.getSize();
 
-  // Register a custom font
-  const fontPath = path.join(__dirname, 'fonts', 'Roboto-Regular.ttf');
-  doc.registerFont('Roboto', fontPath);
-  doc.font('Roboto'); // Set the font for the document
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
   // Border
-  doc.rect(24, 24, doc.page.width - 48, doc.page.height - 48).strokeColor('#999').lineWidth(1).stroke();
-
-  doc.fontSize(20).fillColor('#111').text('Final Receipt', { align: 'center' }).moveDown(1);
-
-  doc.fontSize(12).fillColor('#333');
-  doc.text(`Receipt #: ${id}`);
-  doc.text(`Name    : ${name}`);
-  doc.text(`Phone   : ${phone}`);
-  doc.text(`Event   : ${eventDate ?? '-'}`);
-  doc.moveDown(0.5);
-
-  doc.text(`Total Amount   : ₹${Number(amountTotal || 0)}`);
-  doc.text(`Advance Paid   : ₹${Number(advancePaid || 0)}`);
-  doc.text(`Paid Now       : ₹${Number(finalPaidNow || 0)}`);
-  doc.text(`Remaining      : ₹${Number(remainingAmount || 0)}`);
-  doc.moveDown(1);
-
-  doc.fontSize(9).fillColor('#666').text('Thank you for choosing us!', { align: 'center' });
-
-  doc.end();
-
-  return new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    doc.on('data', (chunk) => chunks.push(chunk));
-    doc.on('error', (err) => reject(err));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
+  const margin = 24;
+  page.drawRectangle({
+    x: margin, y: margin, width: width - margin * 2, height: height - margin * 2,
+    borderColor: rgb(0.6, 0.6, 0.6), borderWidth: 1
   });
+
+  let y = height - 72;
+  const draw = (text: string, f = font, size = 12, color = rgb(0,0,0)) => {
+    page.drawText(text, { x: 48, y, size, font: f, color });
+    y -= size + 8;
+  };
+
+  page.drawText('Final Receipt', { x: 48, y, size: 20, font: bold, color: rgb(0.1,0.1,0.1) });
+  y -= 30;
+
+  draw(`Receipt #: ${id}`, font, 12, rgb(0.2,0.2,0.2));
+  draw(`Name    : ${name}`, font, 12, rgb(0.2,0.2,0.2));
+  draw(`Phone   : ${phone}`, font, 12, rgb(0.2,0.2,0.2));
+  draw(`Event   : ${eventDate ?? '-'}`, font, 12, rgb(0.2,0.2,0.2));
+  y -= 8;
+
+  draw(`Total Amount   : ₹${Number(amountTotal || 0)}`);
+  draw(`Advance Paid   : ₹${Number(advancePaid || 0)}`);
+  draw(`Paid Now       : ₹${Number(finalPaidNow || 0)}`);
+  draw(`Remaining      : ₹${Number(remainingAmount || 0)}`);
+  y -= 12;
+
+  page.drawText('Thank you for choosing us!', {
+    x: 48, y, size: 9, font, color: rgb(0.4,0.4,0.4)
+  });
+
+  const bytes = await pdf.save();
+  return Buffer.from(bytes);
 }

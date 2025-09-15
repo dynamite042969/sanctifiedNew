@@ -2,7 +2,6 @@
   "name": "web",
   "version": "0.1.0",
   "private": true,
-
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -25,6 +24,7 @@
     "get-stream": "^9.0.1",
     "googleapis": "^159.0.0",
     "next": "15.5.3",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.2",
     "react": "18.2.0",
     "react-dom": "18.2.0",
