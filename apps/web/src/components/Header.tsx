@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import {
   AppBar,
   Box,
@@ -15,16 +16,23 @@ import {
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ThemeToggleContext } from './ThemeToggleContext';
 
 export default function Header() {
   const theme = useTheme();
   const { toggleColorMode } = React.useContext(ThemeToggleContext);
+  const router = useRouter();
 
   return (
     <AppBar position="static" color="transparent" elevation={1}>
       <Container>
         <Toolbar disableGutters>
+          <Tooltip title="Back">
+            <IconButton onClick={() => router.back()} color="inherit">
+              <ArrowBackIcon />
+            </IconButton>
+          </Tooltip>
           <Typography
             variant="h6"
             noWrap
