@@ -6,27 +6,24 @@ import {
   Box,
   Container,
   Typography,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Button,
   Modal,
-  Menu,
-  MenuItem,
-  IconButton,
   TextField,
   FormControl,
   InputLabel,
   Select,
-  TablePagination,
+  MenuItem,
   Snackbar,
   Alert,
+  Chip,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
 } from "@mui/material";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
+import { Edit as EditIcon, Delete as DeleteIcon, ReceiptLong as ReceiptLongIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import dayjs, { Dayjs } from "dayjs";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -53,7 +50,7 @@ interface WeddingActive {
   advance_paid: number;
   remaining_amount: number;
   event_date: string;
-  status: string;
+  status: 'active' | 'completed' | 'cancelled';
   package: string;
   custom_events: CustomEvent[] | null;
 }
@@ -61,20 +58,19 @@ interface WeddingActive {
 export default function ActiveCustomersPage() {
   const [rows, setRows] = React.useState<WeddingActive[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedCustomer, setSelectedCustomer] = React.useState<WeddingActive | null>(null);
+  const [current, setCurrent] = React.useState<WeddingActive | null>(null);
   const [finalPaymentModalOpen, setFinalPaymentModalOpen] = React.useState(false);
   const [finalPayment, setFinalPayment] = React.useState("");
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const [editModalOpen, setEditModalOpen] = React.useState(false);
   const [editDraft, setEditDraft] = React.useState<Partial<WeddingActive>>({});
+  const [cancelOpen, setCancelOpen] = React.useState(false);
   const [filters, setFilters] = React.useState({
     name: "",
     status: "",
     package: "",
     date: null as Dayjs | null,
   });
-  const [page, setPage] = React.useState(0);
-  const [rowsPerPage, setRowsPerPage] = React.useState(20);
+  const [paginationModel, setPaginationModel] = React.useState({ page: 0, pageSize: 20 });
   const [snack, setSnack] = React.useState<{ open: boolean; msg: string; type: 'success' | 'error' }>({ open: false, msg: '', type: 'success' });
 
   const load = async () => {
@@ -82,7 +78,7 @@ export default function ActiveCustomersPage() {
     const { data, error } = await supabase
       .from("wedding_active")
       .select("*")
-      .order("id", { ascending: false });
+      .order("created_at", { ascending: false });
     if (!error) {
       setRows(data as WeddingActive[]);
     }
@@ -93,26 +89,16 @@ export default function ActiveCustomersPage() {
     load();
   }, []);
 
-  const handleOpenActionsMenu = (event: React.MouseEvent<HTMLElement>, customer: WeddingActive) => {
-    setAnchorEl(event.currentTarget);
-    setSelectedCustomer(customer);
-  };
-
-  const handleCloseActionsMenu = () => {
-    setAnchorEl(null);
-    setSelectedCustomer(null);
-  };
-
-  const handleOpenEditModal = () => {
-    if (!selectedCustomer) return;
-    setEditDraft(selectedCustomer);
+  const handleOpenEditModal = (customer: WeddingActive) => {
+    setCurrent(customer);
+    setEditDraft(customer);
     setEditModalOpen(true);
-    handleCloseActionsMenu();
   };
 
   const handleCloseEditModal = () => {
     setEditModalOpen(false);
     setEditDraft({});
+    setCurrent(null);
   };
 
   const handleUpdateActiveCustomer = async () => {
@@ -133,9 +119,9 @@ export default function ActiveCustomersPage() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!selectedCustomer) return;
-    const { error } = await supabase.from("wedding_active").delete().eq("id", selectedCustomer.id);
+  const handleDelete = async (customer: WeddingActive) => {
+    if (!confirm(`Are you sure you want to delete the booking for ${customer.name}?`)) return;
+    const { error } = await supabase.from("wedding_active").delete().eq("id", customer.id);
     if (error) {
       console.error("Error deleting active customer:", error);
       setSnack({ open: true, msg: error.message, type: 'error' });
@@ -144,25 +130,22 @@ export default function ActiveCustomersPage() {
       setSnack({ open: true, msg: 'Customer deleted successfully', type: 'success' });
       load();
     }
-    handleCloseActionsMenu();
   };
 
-  const handleOpenFinalPaymentModal = () => {
-    if (selectedCustomer) {
-      setFinalPayment(selectedCustomer.remaining_amount.toString());
-    }
+  const handleOpenFinalPaymentModal = (customer: WeddingActive) => {
+    setCurrent(customer);
+    setFinalPayment(customer.remaining_amount.toString());
     setFinalPaymentModalOpen(true);
-    setAnchorEl(null);
   };
 
   const handleCloseFinalPaymentModal = () => {
     setFinalPaymentModalOpen(false);
     setFinalPayment("");
-    setSelectedCustomer(null);
+    setCurrent(null);
   };
 
   const handleSendFinalReceipt = async () => {
-    if (!selectedCustomer || !finalPayment) return;
+    if (!current || !finalPayment) return;
 
     // Update database first
     const { error: dbError } = await supabase
@@ -170,9 +153,9 @@ export default function ActiveCustomersPage() {
       .update({
         status: "completed",
         remaining_amount: 0,
-        advance_paid: selectedCustomer.amount_total,
+        advance_paid: current.amount_total,
       })
-      .eq("id", selectedCustomer.id);
+      .eq("id", current.id);
 
     if (dbError) {
       setSnack({ open: true, msg: dbError.message, type: 'error' });
@@ -186,27 +169,49 @@ export default function ActiveCustomersPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          bookingId: selectedCustomer.id,
+          bookingId: current.id,
           finalAmount: Number(finalPayment),
-          bookingType: 'wedding', // Added bookingType
+          bookingType: 'wedding',
         }),
       });
 
       const j = await resp.json().catch(() => ({}));
       if (resp.ok && j.ok && j.whatsappUrl) {
         window.open(j.whatsappUrl, '_blank', 'noopener,noreferrer');
-        setSnack({ open: true, msg: 'Final receipt uploaded to Supabase Storage and link sent on WhatsApp', type: 'success' });
+        setSnack({ open: true, msg: 'Final receipt uploaded and link sent on WhatsApp', type: 'success' });
       } else {
-        setSnack({ open: true, msg: j.error || 'Could not upload PDF to Supabase Storage.', type: 'error' });
-        console.error("Error from API:", j.error || 'Could not upload PDF to Supabase Storage.');
+        setSnack({ open: true, msg: j.error || 'Could not send WhatsApp receipt.', type: 'error' });
+        console.error("Error from API:", j.error || 'Could not send WhatsApp receipt.');
       }
     } catch (e: any) {
-      setSnack({ open: true, msg: 'Could not upload PDF to Supabase Storage.', type: 'error' });
+      setSnack({ open: true, msg: 'Could not call API to send receipt.', type: 'error' });
       console.error("API call error:", e);
     }
 
     handleCloseFinalPaymentModal();
     load();
+  };
+
+  const openCancelDialog = (customer: WeddingActive) => {
+    setCurrent(customer);
+    setCancelOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!current) return;
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', current.id);
+
+    if (error) {
+      setSnack({ open: true, msg: error.message, type: 'error' });
+    } else {
+      setSnack({ open: true, msg: 'Booking cancelled', type: 'success' });
+      setCancelOpen(false);
+      setCurrent(null);
+      load();
+    }
   };
 
   const handleEditEventChange = (
@@ -237,10 +242,69 @@ export default function ActiveCustomersPage() {
     return nameMatch && statusMatch && packageMatch && dateMatch;
   });
 
-  const paginatedRows = filteredRows.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  const columns: GridColDef<WeddingActive>[] = [
+    { field: 'name', headerName: 'Name', flex: 1, minWidth: 150 },
+    { field: 'phone', headerName: 'Phone', width: 130 },
+    { field: 'package', headerName: 'Package', width: 120 },
+    { field: 'amount_total', headerName: 'Total (₹)', type: 'number', width: 120 },
+    { field: 'advance_paid', headerName: 'Advance (₹)', type: 'number', width: 120 },
+    { field: 'remaining_amount', headerName: 'Remaining (₹)', type: 'number', width: 130 },
+    {
+        field: 'event_date',
+        headerName: 'Event Date',
+        width: 150,
+        valueFormatter: (value: string) => value ? dayjs(value).format('DD MMM YYYY') : '',
+    },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 120,
+      renderCell: (params) => {
+        const status = params.value as WeddingActive['status'];
+        let color: 'primary' | 'success' | 'error' | 'default' = 'default';
+        if (status === 'active') color = 'primary';
+        if (status === 'completed') color = 'success';
+        if (status === 'cancelled') color = 'error';
+        return <Chip label={status} color={color} size="small" />;
+      },
+    },
+    {
+      field: 'actions',
+      type: 'actions',
+      headerName: 'Actions',
+      width: 120,
+      getActions: (params) => [
+        <GridActionsCellItem
+          key="edit"
+          icon={<EditIcon />}
+          label="Edit"
+          onClick={() => handleOpenEditModal(params.row)}
+          showInMenu
+        />,
+        <GridActionsCellItem
+          key="cancel"
+          icon={<CancelIcon />}
+          label="Cancel Booking"
+          onClick={() => openCancelDialog(params.row)}
+          showInMenu
+        />,
+        <GridActionsCellItem
+          key="receipt"
+          icon={<ReceiptLongIcon />}
+          label="Send Final Receipt"
+          onClick={() => handleOpenFinalPaymentModal(params.row)}
+          showInMenu
+        />,
+        <GridActionsCellItem
+          key="delete"
+          icon={<DeleteIcon />}
+          label="Delete"
+          onClick={() => handleDelete(params.row)}
+          showInMenu
+        />,
+      ],
+    },
+];
 
   return (
     <main>
@@ -252,7 +316,7 @@ export default function ActiveCustomersPage() {
       >
         <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
           <Typography variant="h3" component="h1" fontWeight={700} gutterBottom>
-            Active Customers
+            Wedding Studio - Active Customers
           </Typography>
           <Typography variant="body1" color="text.secondary">
             View and manage ongoing wedding studio customers.
@@ -261,15 +325,15 @@ export default function ActiveCustomersPage() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
-        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'stretch', md: 'center' } }}>
           <TextField
             label="Search by Name or Phone"
             value={filters.name}
             onChange={(e) => setFilters({ ...filters, name: e.target.value })}
             variant="outlined"
-            fullWidth
+            sx={{ flexGrow: { md: 1 } }}
           />
-          <FormControl variant="outlined" sx={{ minWidth: 120 }}>
+          <FormControl variant="outlined" sx={{ minWidth: { md: 120 } }}>
             <InputLabel>Status</InputLabel>
             <Select
               value={filters.status}
@@ -281,9 +345,10 @@ export default function ActiveCustomersPage() {
               </MenuItem>
               <MenuItem value="active">Active</MenuItem>
               <MenuItem value="completed">Completed</MenuItem>
+              <MenuItem value="cancelled">Cancelled</MenuItem>
             </Select>
           </FormControl>
-          <FormControl variant="outlined" sx={{ minWidth: 120 }}>
+          <FormControl variant="outlined" sx={{ minWidth: { md: 120 } }}>
             <InputLabel>Package</InputLabel>
             <Select
               value={filters.package}
@@ -306,63 +371,20 @@ export default function ActiveCustomersPage() {
             />
           </LocalizationProvider>
         </Box>
-        <TableContainer component={Paper} elevation={3}>
-          <Table sx={{ minWidth: 650 }} aria-label="simple table">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Phone</TableCell>
-                <TableCell>Package</TableCell>
-                <TableCell>Total Amount</TableCell>
-                <TableCell>Advance Paid</TableCell>
-                <TableCell>Remaining</TableCell>
-                <TableCell>Event Date</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell>Actions</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={9} align="center">
-                    Loading...
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginatedRows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>{row.name}</TableCell>
-                    <TableCell>{row.phone}</TableCell>
-                    <TableCell>{row.package}</TableCell>
-                    <TableCell>₹{row.amount_total}</TableCell>
-                    <TableCell>₹{row.advance_paid}</TableCell>
-                    <TableCell>₹{row.remaining_amount}</TableCell>
-                    <TableCell>{dayjs(row.event_date).format("DD/MM/YYYY")}</TableCell>
-                    <TableCell>{row.status}</TableCell>
-                    <TableCell>
-                      <IconButton onClick={(e) => handleOpenActionsMenu(e, row)}>
-                        <MoreVertIcon />
-                      </IconButton>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </TableContainer>
-
-        <TablePagination
-          rowsPerPageOptions={[20, 50, 100]}
-          component="div"
-          count={filteredRows.length}
-          rowsPerPage={rowsPerPage}
-          page={page}
-          onPageChange={(event, newPage) => setPage(newPage)}
-          onRowsPerPageChange={(event) => {
-            setRowsPerPage(parseInt(event.target.value, 10));
-            setPage(0);
-          }}
-        />
+        
+        <Box sx={{ height: 650, width: '100%' }}>
+            <DataGrid
+                rows={filteredRows}
+                columns={columns}
+                loading={loading}
+                getRowId={(r) => r.id}
+                pagination
+                pageSizeOptions={[20, 50, 100]}
+                paginationModel={paginationModel}
+                onPaginationModelChange={setPaginationModel}
+                disableRowSelectionOnClick
+            />
+        </Box>
 
         <Modal open={finalPaymentModalOpen} onClose={handleCloseFinalPaymentModal}>
           <Box sx={{ ...style, width: 400 }}>
@@ -383,135 +405,149 @@ export default function ActiveCustomersPage() {
           </Box>
         </Modal>
 
-        <Modal open={editModalOpen} onClose={handleCloseEditModal}>
-          <Box sx={{ ...style, width: 800, maxHeight: '80vh', overflowY: 'auto' }}>
-            <Typography variant="h6" component="h2">
-              Edit Active Customer
-            </Typography>
-            <TextField
-              fullWidth
-              label="Name"
-              value={editDraft.name || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Phone"
-              value={editDraft.phone || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Total Amount"
-              type="number"
-              value={editDraft.amount_total || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, amount_total: Number(e.target.value) })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Advance Paid"
-              type="number"
-              value={editDraft.advance_paid || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, advance_paid: Number(e.target.value) })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Remaining Amount"
-              type="number"
-              value={editDraft.remaining_amount || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, remaining_amount: Number(e.target.value) })}
-              margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Package</InputLabel>
-              <Select
-                value={editDraft.package || ""}
-                onChange={(e) => setEditDraft({ ...editDraft, package: e.target.value })}
-                label="Package"
-              >
-                <MenuItem value="regular">Regular Package</MenuItem>
-                <MenuItem value="premium">Premium Package</MenuItem>
-                <MenuItem value="custom">Custom Package</MenuItem>
-              </Select>
-            </FormControl>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="Event Date"
-                value={editDraft.event_date ? dayjs(editDraft.event_date) : null}
-                onChange={(newValue) => setEditDraft({ ...editDraft, event_date: newValue?.toISOString() })}
-              />
-            </LocalizationProvider>
+        <Dialog open={editModalOpen} onClose={handleCloseEditModal} fullWidth maxWidth="md">
+          <DialogTitle>Edit Active Customer</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                fullWidth
+                label="Name"
+                value={editDraft.name || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Phone"
+                value={editDraft.phone || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Total Amount"
+                type="number"
+                value={editDraft.amount_total || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, amount_total: Number(e.target.value) })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Advance Paid"
+                type="number"
+                value={editDraft.advance_paid || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, advance_paid: Number(e.target.value) })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Remaining Amount"
+                type="number"
+                value={editDraft.remaining_amount || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, remaining_amount: Number(e.target.value) })}
+                margin="normal"
+                />
+                <FormControl fullWidth margin="normal">
+                <InputLabel>Package</InputLabel>
+                <Select
+                    value={editDraft.package || ""}
+                    onChange={(e) => setEditDraft({ ...editDraft, package: e.target.value })}
+                    label="Package"
+                >
+                    <MenuItem value="regular">Regular Package</MenuItem>
+                    <MenuItem value="premium">Premium Package</MenuItem>
+                    <MenuItem value="custom">Custom Package</MenuItem>
+                </Select>
+                </FormControl>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DatePicker
+                    label="Event Date"
+                    value={editDraft.event_date ? dayjs(editDraft.event_date) : null}
+                    onChange={(newValue) => setEditDraft({ ...editDraft, event_date: newValue?.toISOString() })}
+                />
+                </LocalizationProvider>
 
-            {editDraft.package === "custom" && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Custom Package Details
-                </Typography>
-                {(editDraft.custom_events || []).map((event, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: "flex",
-                      gap: 2,
-                      mb: 2,
-                      alignItems: "center",
-                    }}
-                  >
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <DatePicker
-                        label="Event Date"
-                        value={event.date ? dayjs(event.date) : null}
-                        onChange={(newValue) =>
-                          handleEditEventChange(index, "date", newValue)
+                {editDraft.package === "custom" && (
+                <Box sx={{ mt: 2 }}>
+                    <Typography variant="h6" gutterBottom>
+                    Custom Package Details
+                    </Typography>
+                    {(editDraft.custom_events || []).map((event, index) => (
+                    <Box
+                        key={index}
+                        sx={{
+                        display: "flex",
+                        gap: 2,
+                        mb: 2,
+                        alignItems: "center",
+                        flexWrap: 'wrap'
+                        }}
+                    >
+                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                            label="Event Date"
+                            value={event.date ? dayjs(event.date) : null}
+                            onChange={(newValue) =>
+                            handleEditEventChange(index, "date", newValue)
+                            }
+                        />
+                        <TimePicker
+                            label="Event Time"
+                            value={event.time ? dayjs(event.time) : null}
+                            onChange={(newValue) =>
+                            handleEditEventChange(index, "time", newValue)
+                            }
+                        />
+                        </LocalizationProvider>
+                        <TextField
+                        label="Function"
+                        value={event.function}
+                        onChange={(e) =>
+                            handleEditEventChange(index, "function", e.target.value)
                         }
-                      />
-                      <TimePicker
-                        label="Event Time"
-                        value={event.time ? dayjs(event.time) : null}
-                        onChange={(newValue) =>
-                          handleEditEventChange(index, "time", newValue)
+                        />
+                        <TextField
+                        label="Service"
+                        value={event.service}
+                        onChange={(e) =>
+                            handleEditEventChange(index, "service", e.target.value)
                         }
-                      />
-                    </LocalizationProvider>
-                    <TextField
-                      label="Function"
-                      value={event.function}
-                      onChange={(e) =>
-                        handleEditEventChange(index, "function", e.target.value)
-                      }
-                    />
-                    <TextField
-                      label="Service"
-                      value={event.service}
-                      onChange={(e) =>
-                        handleEditEventChange(index, "service", e.target.value)
-                      }
-                    />
-                  </Box>
-                ))}
-                <Button onClick={handleAddEventToDraft}>Add Event</Button>
-              </Box>
-            )}
-
-            <Button onClick={handleUpdateActiveCustomer} variant="contained" sx={{ mt: 2 }}>
+                        />
+                    </Box>
+                    ))}
+                    <Button onClick={handleAddEventToDraft}>Add Event</Button>
+                </Box>
+                )}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseEditModal}>Cancel</Button>
+            <Button onClick={handleUpdateActiveCustomer} variant="contained">
               Save Changes
             </Button>
-          </Box>
-        </Modal>
+          </DialogActions>
+        </Dialog>
 
-        <Menu
-          anchorEl={anchorEl}
-          open={Boolean(anchorEl)}
-          onClose={handleCloseActionsMenu}
-        >
-          <MenuItem onClick={handleOpenEditModal}>Edit</MenuItem>
-          <MenuItem onClick={handleDelete}>Delete</MenuItem>
-          <MenuItem onClick={handleOpenFinalPaymentModal}>Send Final Receipt</MenuItem>
-        </Menu>
+        <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} fullWidth maxWidth="xs">
+            <DialogTitle>Confirm Cancellation</DialogTitle>
+            <DialogContent>
+            <Typography>
+                Are you sure you want to cancel the booking for <strong>{current?.name}</strong>?
+            </Typography>
+            {current && current.remaining_amount > 0 && (
+                <Alert severity="warning" sx={{ mt: 2 }}>
+                This booking has a remaining balance of ₹{current.remaining_amount}. Cancelling will not clear this balance.
+                </Alert>
+            )}
+            </DialogContent>
+            <DialogActions>
+            <Button onClick={() => setCancelOpen(false)}>Back</Button>
+            <Button variant="contained" color="error" onClick={handleConfirmCancel}>
+                Confirm Cancel
+            </Button>
+            </DialogActions>
+        </Dialog>
+
       </Container>
     <Snackbar
         open={snack.open}

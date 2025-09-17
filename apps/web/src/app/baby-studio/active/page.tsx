@@ -19,6 +19,7 @@ import {
   InputLabel,
   FormControl,
   SelectChangeEvent,
+  Chip,
 } from '@mui/material';
 import {
   DataGrid,
@@ -26,7 +27,7 @@ import {
   GridActionsCellItem,
 } from '@mui/x-data-grid';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { Edit as EditIcon, Delete as DeleteIcon, ReceiptLong as ReceiptLongIcon, AddCard as AddCardIcon } from '@mui/icons-material';
+import { Edit as EditIcon, Delete as DeleteIcon, ReceiptLong as ReceiptLongIcon, AddCard as AddCardIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { createClient } from '@supabase/supabase-js';
 
 type BookingRow = {
@@ -67,6 +68,7 @@ export default function ActiveCustomersPage() {
   const [editOpen, setEditOpen] = React.useState(false);
   const [advanceOpen, setAdvanceOpen] = React.useState(false);
   const [finalOpen, setFinalOpen] = React.useState(false);
+  const [cancelOpen, setCancelOpen] = React.useState(false);
   const [current, setCurrent] = React.useState<BookingRow | null>(null);
   const [form, setForm] = React.useState({ name: '', phone: '', amount_total: 0, event_date: '' });
   const [advance, setAdvance] = React.useState<number>(0);
@@ -88,7 +90,7 @@ export default function ActiveCustomersPage() {
       query = query.eq('event_date', dateFilter.format('YYYY-MM-DD'));
     }
 
-    const { data, error } = await query.order('event_date', { ascending: true });
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       setSnack({ open: true, msg: error.message, type: 'error' });
@@ -242,10 +244,44 @@ export default function ActiveCustomersPage() {
     load();
   };
 
+  const openCancelDialog = (row: BookingRow) => {
+    setCurrent(row);
+    setCancelOpen(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!current) return;
+    const { error } = await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('id', current.id);
+
+    if (error) {
+      setSnack({ open: true, msg: error.message, type: 'error' });
+    } else {
+      setSnack({ open: true, msg: 'Booking cancelled', type: 'success' });
+      setCancelOpen(false);
+      setCurrent(null);
+      load();
+    }
+  };
+
   const cols: GridColDef<BookingRow>[] = [
     { field: 'name', headerName: 'Name', flex: 1, minWidth: 140 },
     { field: 'phone', headerName: 'Number', width: 140 },
-    { field: 'status', headerName: 'Status', width: 110 },
+    {
+      field: 'status',
+      headerName: 'Status',
+      width: 120,
+      renderCell: (params) => {
+        const status = params.value as BookingRow['status'];
+        let color: 'primary' | 'success' | 'error' | 'default' = 'default';
+        if (status === 'active') color = 'primary';
+        if (status === 'completed') color = 'success';
+        if (status === 'cancelled') color = 'error';
+        return <Chip label={status} color={color} size="small" />;
+      },
+    },
     {
       field: 'event_date',
       headerName: 'Event Date',
@@ -284,6 +320,13 @@ export default function ActiveCustomersPage() {
           showInMenu
         />,
         <GridActionsCellItem
+          key="cancel"
+          icon={<CancelIcon />}
+          label="Cancel Booking"
+          onClick={() => openCancelDialog(params.row)}
+          showInMenu
+        />,
+        <GridActionsCellItem
           key="delete"
           icon={<DeleteIcon />}
           label="Delete"
@@ -297,18 +340,26 @@ export default function ActiveCustomersPage() {
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Active Customers
+        Baby Studio - Active Customers
       </Typography>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          gap: 2,
+          mb: 2,
+          alignItems: { xs: 'stretch', md: 'center' },
+        }}
+      >
         <TextField
           label="Search by Name or Phone"
           variant="outlined"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          sx={{ flex: 1 }}
+          sx={{ flexGrow: { md: 1 } }}
         />
-        <FormControl sx={{ minWidth: 120 }}>
+        <FormControl sx={{ minWidth: { md: 120 } }}>
           <InputLabel>Status</InputLabel>
           <Select
             value={statusFilter}
@@ -364,12 +415,13 @@ export default function ActiveCustomersPage() {
             onChange={(e) => setForm({ ...form, amount_total: Number(e.target.value || 0) })}
             fullWidth
           />
-          <TextField
-            label="Event Date (ISO)"
-            value={form.event_date}
-            onChange={(e) => setForm({ ...form, event_date: e.target.value })}
-            helperText="Keep ISO format (YYYY-MM-DD)"
-            fullWidth
+          <DatePicker
+            label="Event Date"
+            value={form.event_date ? dayjs(form.event_date) : null}
+            onChange={(newValue) =>
+              setForm({ ...form, event_date: newValue ? newValue.format('YYYY-MM-DD') : '' })
+            }
+            slotProps={{ textField: { fullWidth: true } }}
           />
         </DialogContent>
         <DialogActions>
@@ -413,6 +465,27 @@ export default function ActiveCustomersPage() {
         <DialogActions>
           <Button onClick={() => setFinalOpen(false)}>Cancel</Button>
           <Button variant="contained" onClick={sendFinal}>Send</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Cancel booking dialog */}
+      <Dialog open={cancelOpen} onClose={() => setCancelOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Confirm Cancellation</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to cancel the booking for <strong>{current?.name}</strong>?
+          </Typography>
+          {current && current.remaining_amount > 0 && (
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              This booking has a remaining balance of ₹{current.remaining_amount}. Cancelling will not clear this balance.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCancelOpen(false)}>Back</Button>
+          <Button variant="contained" color="error" onClick={handleConfirmCancel}>
+            Confirm Cancel
+          </Button>
         </DialogActions>
       </Dialog>
 

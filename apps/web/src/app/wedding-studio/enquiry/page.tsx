@@ -25,6 +25,11 @@ import {
   Menu,
   IconButton,
   TablePagination,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
 } from "@mui/material";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -387,7 +392,7 @@ export default function EnquiryPage() {
       >
         <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
           <Typography variant="h3" component="h1" fontWeight={700} gutterBottom>
-            Customer Enquiry
+            Wedding Studio - Customer Enquiry
           </Typography>
           <Typography variant="body1" color="text.secondary">
             Capture new leads and enquiries for wedding shoots.
@@ -664,123 +669,125 @@ export default function EnquiryPage() {
           </Box>
         </Modal>
 
-        <Modal open={editModalOpen} onClose={handleCloseEditModal}>
-          <Box sx={{ ...style, width: 800, maxHeight: "80vh", overflowY: "auto" }}>
-            <Typography variant="h6" component="h2">
-              Edit Enquiry
-            </Typography>
-            <TextField
-              fullWidth
-              label="Name"
-              value={editDraft.name || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Phone"
-              value={editDraft.phone || ""}
-              onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })}
-              margin="normal"
-            />
-            <TextField
-              fullWidth
-              label="Amount"
-              type="number"
-              value={editDraft.amount ?? ""}
-              onChange={(e) =>
-                setEditDraft({ ...editDraft, amount: Number(e.target.value) })
-              }
-              margin="normal"
-            />
-            <FormControl fullWidth margin="normal">
-              <InputLabel>Package</InputLabel>
-              <Select
-                value={editDraft.package || ""}
+        <Dialog open={editModalOpen} onClose={handleCloseEditModal} fullWidth maxWidth="md">
+          <DialogTitle>Edit Enquiry</DialogTitle>
+          <DialogContent dividers>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+                <TextField
+                fullWidth
+                label="Name"
+                value={editDraft.name || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Phone"
+                value={editDraft.phone || ""}
+                onChange={(e) => setEditDraft({ ...editDraft, phone: e.target.value })}
+                margin="normal"
+                />
+                <TextField
+                fullWidth
+                label="Amount"
+                type="number"
+                value={editDraft.amount ?? ""}
                 onChange={(e) =>
-                  setEditDraft({ ...editDraft, package: e.target.value as string })
+                    setEditDraft({ ...editDraft, amount: Number(e.target.value) })
                 }
-                label="Package"
-              >
-                <MenuItem value="regular">Regular Package</MenuItem>
-                <MenuItem value="premium">Premium Package</MenuItem>
-                <MenuItem value="custom">Custom Package</MenuItem>
-              </Select>
-            </FormControl>
-            <LocalizationProvider dateAdapter={AdapterDayjs}>
-              <DatePicker
-                label="Date"
-                value={editDraft.date ? dayjs(editDraft.date) : null}
-                onChange={(newValue) =>
-                  setEditDraft({ ...editDraft, date: newValue?.toISOString() })
-                }
-              />
-            </LocalizationProvider>
+                margin="normal"
+                />
+                <FormControl fullWidth margin="normal">
+                <InputLabel>Package</InputLabel>
+                <Select
+                    value={editDraft.package || ""}
+                    onChange={(e) =>
+                    setEditDraft({ ...editDraft, package: e.target.value as string })
+                    }
+                    label="Package"
+                >
+                    <MenuItem value="regular">Regular Package</MenuItem>
+                    <MenuItem value="premium">Premium Package</MenuItem>
+                    <MenuItem value="custom">Custom Package</MenuItem>
+                </Select>
+                </FormControl>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                <DatePicker
+                    label="Date"
+                    value={editDraft.date ? dayjs(editDraft.date) : null}
+                    onChange={(newValue) =>
+                    setEditDraft({ ...editDraft, date: newValue?.toISOString() })
+                    }
+                />
+                </LocalizationProvider>
 
-            {editDraft.package === "custom" && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="h6" gutterBottom>
-                  Custom Package Details
-                </Typography>
-                {(editDraft.custom_events || []).map((event, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      display: "flex",
-                      gap: 2,
-                      mb: 2,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <LocalizationProvider dateAdapter={AdapterDayjs}>
-                      <DatePicker
-                        label="Event Date"
-                        value={event.date ? dayjs(event.date) : null}
-                        onChange={(newValue) =>
-                          handleEditEventChange(index, "date", newValue)
+                {editDraft.package === "custom" && (
+                <Box sx={{ mt: 2 }}>
+                    <Typography variant="h6" gutterBottom>
+                    Custom Package Details
+                    </Typography>
+                    {(editDraft.custom_events || []).map((event, index) => (
+                    <Box
+                        key={index}
+                        sx={{
+                        display: "flex",
+                        gap: 2,
+                        mb: 2,
+                        alignItems: "center",
+                        flexWrap: "wrap",
+                        }}
+                    >
+                        <LocalizationProvider dateAdapter={AdapterDayjs}>
+                        <DatePicker
+                            label="Event Date"
+                            value={event.date ? dayjs(event.date) : null}
+                            onChange={(newValue) =>
+                            handleEditEventChange(index, "date", newValue)
+                            }
+                        />
+                        <TimePicker
+                            label="Event Time"
+                            value={event.time ? dayjs(event.time) : null}
+                            onChange={(newValue) =>
+                            handleEditEventChange(index, "time", newValue)
+                            }
+                        />
+                        </LocalizationProvider>
+                        <TextField
+                        label="Function"
+                        value={event.function}
+                        onChange={(e) =>
+                            handleEditEventChange(index, "function", e.target.value)
                         }
-                      />
-                      <TimePicker
-                        label="Event Time"
-                        value={event.time ? dayjs(event.time) : null}
-                        onChange={(newValue) =>
-                          handleEditEventChange(index, "time", newValue)
+                        />
+                        <TextField
+                        label="Service"
+                        value={event.service}
+                        onChange={(e) =>
+                            handleEditEventChange(index, "service", e.target.value)
                         }
-                      />
-                    </LocalizationProvider>
-                    <TextField
-                      label="Function"
-                      value={event.function}
-                      onChange={(e) =>
-                        handleEditEventChange(index, "function", e.target.value)
-                      }
-                    />
-                    <TextField
-                      label="Service"
-                      value={event.service}
-                      onChange={(e) =>
-                        handleEditEventChange(index, "service", e.target.value)
-                      }
-                    />
-                    <TextField
-                      label="Address"
-                      value={event.address}
-                      onChange={(e) =>
-                        handleEditEventChange(index, "address", e.target.value)
-                      }
-                    />
-                  </Box>
-                ))}
-                <Button onClick={handleAddEventToDraft}>Add Event</Button>
-              </Box>
-            )}
-
-            <Button onClick={handleUpdateEnquiry} variant="contained" sx={{ mt: 2 }}>
+                        />
+                        <TextField
+                        label="Address"
+                        value={event.address}
+                        onChange={(e) =>
+                            handleEditEventChange(index, "address", e.target.value)
+                        }
+                        />
+                    </Box>
+                    ))}
+                    <Button onClick={handleAddEventToDraft}>Add Event</Button>
+                </Box>
+                )}
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={handleCloseEditModal}>Cancel</Button>
+            <Button onClick={handleUpdateEnquiry} variant="contained">
               Save Changes
             </Button>
-          </Box>
-        </Modal>
+          </DialogActions>
+        </Dialog>
 
         <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleCloseActionsMenu}>
           <MenuItem onClick={handleOpenEditModal}>Edit</MenuItem>

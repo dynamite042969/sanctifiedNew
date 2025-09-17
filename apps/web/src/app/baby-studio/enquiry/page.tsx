@@ -278,7 +278,7 @@ We’ll get back to you shortly.`;
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>
-        Customer Enquiry
+        Baby Studio - Customer Enquiry
       </Typography>
 
       <Card sx={{ mb: 4 }}>
@@ -288,7 +288,7 @@ We’ll get back to you shortly.`;
           </Typography>
           <Box component="form" onSubmit={onSubmit} sx={{ mt: 2 }}>
             <Grid container spacing={2}>
-              <Grid xs={12} md={4}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   label="Name"
                   fullWidth
@@ -297,7 +297,7 @@ We’ll get back to you shortly.`;
                   onChange={(e) => setName(e.target.value)}
                 />
               </Grid>
-              <Grid xs={12} md={4}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   label="Phone (WhatsApp)"
                   fullWidth
@@ -306,7 +306,7 @@ We’ll get back to you shortly.`;
                   onChange={(e) => setPhone(e.target.value)}
                 />
               </Grid>
-              <Grid xs={12} md={2}>
+              <Grid item xs={12} md={2}>
                 <TextField
                   label="Amount (₹)"
                   type="number"
@@ -317,7 +317,7 @@ We’ll get back to you shortly.`;
                   onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </Grid>
-              <Grid xs={12} md={2}>
+              <Grid item xs={12} md={2}>
                 <DatePicker
                   label="Event Date"
                   value={eventDate}
@@ -327,7 +327,7 @@ We’ll get back to you shortly.`;
                   slotProps={{ textField: { fullWidth: true, required: true } }}
                 />
               </Grid>
-              <Grid xs={12}>
+              <Grid item xs={12}>
                 <Stack direction="row" gap={2} justifyContent="flex-end">
                   <Button type="submit" variant="contained">
                     Save Enquiry
@@ -345,15 +345,23 @@ We’ll get back to you shortly.`;
             All Enquiries
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: { xs: 'column', md: 'row' },
+              gap: 2,
+              mb: 2,
+              alignItems: { xs: 'stretch', md: 'center' },
+            }}
+          >
             <TextField
               label="Search by Name or Phone"
               variant="outlined"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              sx={{ flex: 1 }}
+              sx={{ flexGrow: { md: 1 } }}
             />
-            <FormControl sx={{ minWidth: 120 }}>
+            <FormControl sx={{ minWidth: { md: 120 } }}>
               <InputLabel>Status</InputLabel>
               <Select
                 value={statusFilter}
@@ -372,7 +380,9 @@ We’ll get back to you shortly.`;
               value={dateFilter}
               onChange={(newValue) => setDateFilter(newValue)}
             />
-            <Button variant="outlined" onClick={handleClearFilters}>Clear</Button>
+            <Button variant="outlined" onClick={handleClearFilters}>
+              Clear
+            </Button>
           </Box>
 
           <Box sx={{ width: '100%', overflowX: 'auto' }}>
